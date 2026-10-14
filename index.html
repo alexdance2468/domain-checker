@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Domain Checker</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:640px;margin:30px auto;padding:0 16px;line-height:1.4}
+textarea{width:100%;height:170px;font-size:16px;box-sizing:border-box}
+button{font-size:16px;padding:8px 16px;margin:8px 8px 8px 0;cursor:pointer}
+label{margin-right:12px;white-space:nowrap}
+ul{padding:0}li{margin:6px 0;list-style:none}
+.ok{color:#087f23}.no{color:#b00020}.bad{color:#888}
+small{color:#666}
+</style>
+</head>
+<body>
+<h2>Domain Availability Checker</h2>
+<p>One name per line (max 50). Leave off the ending to check the ticked ones.</p>
+<textarea id="n" placeholder="openoddsmarket&#10;freemarketrate&#10;oddsbazaar"></textarea>
+<div>
+  <label><input type="checkbox" class="t" value=".com" checked> .com</label>
+  <label><input type="checkbox" class="t" value=".net"> .net</label>
+  <label><input type="checkbox" class="t" value=".app"> .app</label>
+  <label><input type="checkbox" class="t" value=".com.au"> .com.au</label>
+  <label><input type="checkbox" id="only" checked> Show only available</label>
+</div>
+<button id="go" onclick="go()">Check</button>
+<button onclick="copyFree()">Copy available names</button>
+<p id="s"></p>
+<ul id="r"></ul>
+<p><small>"Likely available" means no DNS records exist for the name. It is very reliable but not a guarantee. The registrar's checkout is the final word, and some names are premium-priced.</small></p>
+<script>
+const free=[];
+async function lookup(d){
+  const urls=[
+    'https://cloudflare-dns.com/dns-query?name='+d+'&type=NS',
+    'https://dns.google/resolve?name='+d+'&type=NS'
+  ];
+  for(const u of urls){
+    try{
+      const res=await fetch(u,{headers:{accept:'application/dns-json'}});
+      return (await res.json()).Status;
+    }catch(e){}
+  }
+  return null;
+}
+async function go(){
+  const r=document.getElementById('r'),s=document.getElementById('s'),b=document.getElementById('go');
+  r.innerHTML='';free.length=0;
+  const tlds=[...document.querySelectorAll('.t:checked')].map(t=>t.value);
+  const only=document.getElementById('only').checked;
+  let names=document.getElementById('n').value.split('\n')
+    .map(x=>x.trim().toLowerCase().replace(/\s+/g,'')).filter(Boolean);
+  names=[...new Set(names)].slice(0,50);
+  let list=[];
+  names.forEach(n=>{
+    if(n.includes('.')) list.push(n);
+    else tlds.forEach(t=>list.push(n+t));
+  });
+  list=list.filter(d=>/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d));
+  if(!list.length){s.textContent='Enter at least one name and tick an ending.';return;}
+  b.disabled=true;
+  let i=0;
+  for(const d of list){
+    i++;s.textContent='Checking '+i+' of '+list.length+'...';
+    const st=await lookup(d);
+    const li=document.createElement('li');
+    if(st===3){
+      free.push(d);li.className='ok';
+      const link=d.endsWith('.au')
+        ?'https://www.google.com/search?q=register+'+d
+        :'https://www.namecheap.com/domains/registration/results/?domain='+d;
+      li.innerHTML='✅ '+d+' · likely available · <a target="_blank" rel="noopener" href="'+link+'">buy</a>';
+      r.appendChild(li);
+    }else if(st===null){
+      li.className='bad';li.textContent='⚠️ '+d+' · check failed';r.appendChild(li);
+    }else if(!only){
+      li.className='no';li.textContent='❌ '+d+' · taken';r.appendChild(li);
+    }
+  }
+  s.textContent='Done. '+free.length+' of '+list.length+' likely available.';
+  b.disabled=false;
+}
+function copyFree(){
+  if(!free.length)return;
+  navigator.clipboard.writeText(free.join('\n'));
+  document.getElementById('s').textContent='Copied '+free.length+' names.';
+}
+</script>
+</body>
+</html>
